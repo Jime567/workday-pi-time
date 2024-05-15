@@ -2,7 +2,6 @@ import { InjectionToken } from "@angular/core";
 import {
   JsonObject,
   JsonProperty,
-  Any,
   JsonConverter,
   JsonCustomConvert
 } from "json2typescript";

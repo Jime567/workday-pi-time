@@ -1,6 +1,6 @@
 import {Injectable} from "@angular/core";
 import {HttpClient, HttpHeaders} from "@angular/common/http";
-import {Router, ActivationEnd, NavigationEnd} from "@angular/router";
+import {Router, NavigationEnd} from "@angular/router";
 import {MatDialog} from "@angular/material/dialog";
 import {JsonConvert} from "json2typescript";
 import {BehaviorSubject, Observable, throwError, Subscription} from "rxjs";
@@ -11,20 +11,8 @@ import {
   Employee,
   Day,
   PunchRequest,
-  Punch,
-  DateConverter,
-  ApiResponse,
-  PeriodBlock
+  ApiResponse
 } from "../objects";
-import {
-  JsonObject,
-  JsonProperty,
-  Any,
-  JsonCustomConvert,
-  JsonConverter
-} from "json2typescript";
-import {stringify} from 'querystring';
-
 export class EmployeeRef {
   private _employee: BehaviorSubject<Employee>;
   private _logout: Function;

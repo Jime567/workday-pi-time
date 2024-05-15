@@ -1,10 +1,10 @@
-import {Component, OnInit, Injectable} from "@angular/core";
-import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
+import {Component, OnInit} from "@angular/core";
+import { HttpClient, HttpHeaders } from "@angular/common/http";
 import {Router} from "@angular/router";
 import {MatDialog} from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {SvgPreloadService} from "../services/svg-preload.service";
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { DomSanitizer } from '@angular/platform-browser';
 import { Observable } from 'rxjs';
 
 

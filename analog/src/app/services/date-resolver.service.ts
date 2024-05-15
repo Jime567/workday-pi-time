@@ -1,18 +1,13 @@
 import { Injectable } from "@angular/core";
-import { Router, RouterStateSnapshot, ActivatedRouteSnapshot } from "@angular/router";
+import { RouterStateSnapshot, ActivatedRouteSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
-
 import { APIService } from "./api.service";
-import { ToastService } from "./toast.service";
-
 @Injectable({
   providedIn: "root"
 })
 export class DateResolverService  {
   constructor(
-    private api: APIService,
-    private router: Router,
-    private toast: ToastService
+    private api: APIService
   ) {}
 
   resolve(

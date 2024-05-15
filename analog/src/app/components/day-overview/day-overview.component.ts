@@ -1,7 +1,7 @@
 import {Component, OnInit, OnDestroy} from "@angular/core";
 import {ActivatedRoute, Router} from "@angular/router";
 import {EmployeeRef, APIService} from "../../services/api.service";
-import {Employee, Day, JobType, Position, Punch} from "../../objects";
+import {Employee, Day, JobType} from "../../objects";
 import {Subscription} from 'rxjs';
 
 @Component({
