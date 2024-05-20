@@ -51,6 +51,8 @@ export class ClockComponent implements OnInit {
       this._empRef = data.empRef;
     });
 
+    console.log(this.svgPreloadService.byuLogo);
+
     if (!this.api.employee_cache || !this.api.timeevents_online || !this.api.workdayAPI_online) {
       this.toast.show(
         "Offline Mode.",
