@@ -1,17 +1,19 @@
-import {Injectable} from "@angular/core";
-import {HttpClient, HttpHeaders} from "@angular/common/http";
-import {Router, NavigationEnd} from "@angular/router";
-import {MatDialog} from "@angular/material/dialog";
-import {JsonConvert} from "json2typescript";
-import {BehaviorSubject, Observable, throwError, Subscription} from "rxjs";
+import { Injectable } from "@angular/core";
+import { HttpClient, HttpHeaders } from "@angular/common/http";
+import { Router, NavigationEnd } from "@angular/router";
+import { MatDialog } from "@angular/material/dialog";
+import { JsonConvert } from "json2typescript";
+import { BehaviorSubject, Observable, throwError, Subscription } from "rxjs";
 
-import {ErrorDialog} from "../dialogs/error/error.dialog";
-import {ToastService} from "./toast.service";
+import { ErrorDialog } from "../dialogs/error/error.dialog";
+import { ToastService } from "./toast.service";
 import {
   Employee,
   Day,
   PunchRequest,
-  ApiResponse
+  ApiResponse,
+  Punch,
+  PeriodBlock
 } from "../objects";
 export class EmployeeRef {
   private _employee: BehaviorSubject<Employee>;
@@ -60,7 +62,7 @@ export class EmployeeRef {
   };
 }
 
-@Injectable({providedIn: "root"})
+@Injectable({ providedIn: "root" })
 export class APIService {
   public theme = "default";
 
@@ -95,7 +97,7 @@ export class APIService {
           } else {
             // remove the error param
             this.router.navigate([], {
-              queryParams: {error: null},
+              queryParams: { error: null },
               queryParamsHandling: "merge",
               preserveFragment: true
             });
@@ -116,7 +118,7 @@ export class APIService {
 
   public switchTheme(name: string) {
     this.router.navigate([], {
-      queryParams: {theme: name},
+      queryParams: { theme: name },
       queryParamsHandling: "merge"
     });
   }
@@ -138,30 +140,32 @@ export class APIService {
 
   getEmployee = (id: string | number): EmployeeRef => {
     const employee = new BehaviorSubject<Employee>(undefined);
-    const endpoint = "http://"+window.location.host+"/get_employee_data/" + id;
+    const endpoint = "http://localhost:8000/get_employee_data/" + id;
     this.http.get(endpoint).subscribe({
-      next: (data: JSON ) => {
+      next: (data: JSON) => {
         try {
-        const response = this.jsonConvert.deserializeObject(data, ApiResponse);
+          const response = this.jsonConvert.deserializeObject(data, ApiResponse);
 
-        //check if database and workday are synced
-        const statuses = Object.keys(response.statuses);
-        this.unsynced = response.statuses["unprocessed_punches_in_tcd"];
-        this.employee_cache = response.statuses["TCD_employee_cache_online"];
-        this.timeevents_online = response.statuses["TCD_timeevents_online"];
-        this.workdayAPI_online = response.statuses["workdayAPI_online"];
-        this.unsyncedPunches = response.unprocessedPunches;
-        const emp = response.employee;
-        emp.id = String(id);
-        this.loadDays(emp);
+          //check if database and workday are synced
+          const statuses = Object.keys(response.statuses);
+          this.unsynced = response.statuses["unprocessed_punches_in_tcd"];
+          this.employee_cache = response.statuses["TCD_employee_cache_online"];
+          this.timeevents_online = response.statuses["TCD_timeevents_online"];
+          this.workdayAPI_online = response.statuses["workdayAPI_online"];
+          this.unsyncedPunches = response.unprocessedPunches;
+          const emp = response.employee;
+          emp.id = String(id);
+          emp.periodPunches = this.generatePeriodPunches(emp);
+          emp.periodBlocks = this.generatePeriodBlocks(emp);
+          this.loadDays(emp);
 
-        console.log("updated employee", emp);
-        employee.next(emp);
+          console.log("updated employee", emp);
+          employee.next(emp);
         } catch (e) {
           console.log("error deserializing employee", e);
           employee.error("Error Deserializing Employee");
         }
-        
+
       },
       error: (err: any) => {
         console.warn("unable to deserialize employee", err);
@@ -178,14 +182,14 @@ export class APIService {
           else {
             employee.error(err.error.error)
           }
-        } 
+        }
         else {
           employee.error("Error " + err.status + ": " + err.statusText + "\r\n" + err.message);
         }
-        
+
       }
-    
-  });
+
+    });
 
     const empRef = new EmployeeRef(employee, (timeout: Boolean) => {
       if (timeout) {
@@ -204,7 +208,7 @@ export class APIService {
       this.switchTheme("");
 
       // route to login page
-      this.router.navigate(["/login"], {replaceUrl: true});
+      this.router.navigate(["/login"], { replaceUrl: true });
       this.showAlert = true;
     }, this.router);
 
@@ -228,7 +232,7 @@ export class APIService {
 
       ref.afterClosed().subscribe(result => {
         this.router.navigate([], {
-          queryParams: {error: null},
+          queryParams: { error: null },
           queryParamsHandling: "merge",
           preserveFragment: true
         });
@@ -238,9 +242,9 @@ export class APIService {
 
   punch = (data: PunchRequest): Observable<any> => {
     try {
-      const json = this.jsonConvert.serialize(data, PunchRequest); 
+      const json = this.jsonConvert.serialize(data, PunchRequest);
       console.log(json);
-      return this.http.post("http://"+window.location.host+"/punch/" + data.id, json, {
+      return this.http.post("http://" + window.location.host + "/punch/" + data.id, json, {
         responseType: "text",
         headers: new HttpHeaders({
           "content-type": "application/json"
@@ -251,7 +255,7 @@ export class APIService {
       return throwError(e);
     }
   };
-  
+
 
   getOtherHours = (byuID: string, jobID: number, date: string) => {
     try {
@@ -268,7 +272,8 @@ export class APIService {
 
   loadDays(emp: Employee) {
     const today = Date.now();
-    
+
+
     //for each position
     for (const pos of emp.positions) {
 
@@ -282,13 +287,13 @@ export class APIService {
       }
 
       //add punches to the days
-      if (emp.periodPunches !== undefined && emp.periodPunches !== null && emp.periodPunches[0] !== null ) {
+      if (emp.periodPunches !== undefined && emp.periodPunches !== null && emp.periodPunches[0] !== null) {
         for (const punch of emp.periodPunches) {
           if (String(pos.positionNumber) === String(punch.positionNumber)) {
             for (const day of days) {
-              if (punch.time.getDate() === day.time.getDate() 
-              && punch.time.getMonth() === day.time.getMonth() 
-            && punch.time.getFullYear() === day.time.getFullYear()) {
+              if (punch.time.getDate() === day.time.getDate()
+                && punch.time.getMonth() === day.time.getMonth()
+                && punch.time.getFullYear() === day.time.getFullYear()) {
                 day.punches.push(punch);
               }
             }
@@ -303,19 +308,19 @@ export class APIService {
             for (const day of days) {
               if (block.startDate === undefined && block.endDate === undefined) {
                 continue;
-              } 
+              }
               else {
                 if (block.startDate !== undefined) {
-                  if (block.startDate.getDate() === day.time.getDate() 
-                  && block.startDate.getMonth() === day.time.getMonth() 
-                  && block.startDate.getFullYear() === day.time.getFullYear()) {
+                  if (block.startDate.getDate() === day.time.getDate()
+                    && block.startDate.getMonth() === day.time.getMonth()
+                    && block.startDate.getFullYear() === day.time.getFullYear()) {
                     day.periodBlocks.push(block);
                   }
                 }
                 else {
                   if (block.endDate.getDate() === day.time.getDate()
-                  && block.endDate.getMonth() === day.time.getMonth() 
-                  && block.endDate.getFullYear() === day.time.getFullYear()) {
+                    && block.endDate.getMonth() === day.time.getMonth()
+                    && block.endDate.getFullYear() === day.time.getFullYear()) {
                     day.periodBlocks.push(block);
                   }
                 }
@@ -324,13 +329,120 @@ export class APIService {
           }
         }
       }
-      
-    pos.days = days;
+
+      pos.days = days;
     }
   }
+
+  // Generate Period Punches
+  generatePeriodPunches = (emp: Employee) => {
+    const punches: Punch[] = [];
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    let i: number;
+    for (const pos of emp.positions) {
+      for (i = 0; i < 2; i++) {
+        const punch = new Punch();
+        punch.positionNumber = parseInt(pos.positionNumber);
+        punch.time = yesterday;
+        if (i === 0) {
+          punch.type = "IN";
+        }
+        else {
+          punch.type = "OUT";
+        }
+        punches.push(punch);
+      }
+    }
+    yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 2);
+    for (const pos of emp.positions) {
+      for (i = 0; i < 2; i++) {
+        const punch = new Punch();
+        punch.positionNumber = parseInt(pos.positionNumber);
+        punch.time = yesterday;
+        if (i === 0) {
+          punch.type = "IN";
+        }
+        else {
+          punch.type = "OUT";
+        }
+        punches.push(punch);
+      }
+    };
+    return punches;
+  }
+
+  // Generate Period Blocks
+  generatePeriodBlocks = (emp: Employee) => {
+    const blocks: PeriodBlock[] = [];
+    var today = new Date();
+    today.setDate(today.getDate() - 1);
+    for (const pos of emp.positions) {
+      const block = new PeriodBlock();
+      console.log("Position " + pos.businessTitle);
+      block.positionNumber = pos.positionNumber;
+      block.startDate = new Date(today);
+      block.startDate.setHours(9, 0, 0, 0);
+      today.setHours(17, 0, 0, 0);
+      block.endDate = today;
+      blocks.push(block);
+    }
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 2);
+    for (const pos of emp.positions) {
+      const block = new PeriodBlock();
+      console.log("Position " + pos.businessTitle);
+      block.positionNumber = pos.positionNumber;
+      block.startDate = new Date(yesterday);
+      block.startDate.setHours(9, 0, 0, 0);
+      yesterday.setHours(17, 0, 0, 0);
+      block.endDate = yesterday;
+      blocks.push(block);
+    }
+    yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 3);
+    for (const pos of emp.positions) {
+      const block = new PeriodBlock();
+      console.log("Position " + pos.businessTitle);
+      block.positionNumber = pos.positionNumber;
+      block.startDate = new Date(yesterday);
+      block.startDate.setHours(9, 0, 0, 0);
+      yesterday.setHours(17, 0, 0, 0);
+      block.endDate = yesterday;
+      blocks.push(block);
+    }
+    yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 4);
+    for (const pos of emp.positions) {
+      const block = new PeriodBlock();
+      console.log("Position " + pos.businessTitle);
+      block.positionNumber = pos.positionNumber;
+      block.startDate = new Date(yesterday);
+      block.startDate.setHours(9, 0, 0, 0);
+      yesterday.setHours(17, 0, 0, 0);
+      block.endDate = yesterday;
+      blocks.push(block);
+    }
+    yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 5);
+    for (const pos of emp.positions) {
+      const block = new PeriodBlock();
+      console.log("Position " + pos.businessTitle);
+      block.positionNumber = pos.positionNumber;
+      block.startDate = new Date(yesterday);
+      block.startDate.setHours(9, 0, 0, 0);
+      yesterday.setHours(17, 0, 0, 0);
+      block.endDate = yesterday;
+      blocks.push(block);
+    }
+    return blocks;
+  };
+
 }
 interface Message {
   value: object;
 }
+
 
 
