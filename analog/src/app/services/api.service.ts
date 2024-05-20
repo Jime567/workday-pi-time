@@ -140,7 +140,7 @@ export class APIService {
 
   getEmployee = (id: string | number): EmployeeRef => {
     const employee = new BehaviorSubject<Employee>(undefined);
-    const endpoint = "http://localhost:8000/get_employee_data/" + id;
+    const endpoint = "http://"+ window.location.host +"/get_employee_data/" + id;
     this.http.get(endpoint).subscribe({
       next: (data: JSON) => {
         try {
